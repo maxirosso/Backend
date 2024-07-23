@@ -1,4 +1,4 @@
-const port = 4000;
+require('dotenv').config();
 const express = require('express');
 const app = express();
 const mongoose = require('mongoose');
@@ -7,6 +7,8 @@ const multer = require('multer');
 const path = require('path');
 const cors = require('cors');
 const { error } = require('console');
+
+const port = 4000;
 
 app.use(express.json());
 app.use(cors());
@@ -77,11 +79,10 @@ const Product = mongoose.model("Product", {
         default: true
     },
     description: {
-        type: String,  // Add this field
+        type: String,
         required: true
     }
 });
-
 
 app.post('/addproduct', async (req, res) => {
     let products = await Product.find({});
@@ -100,7 +101,7 @@ app.post('/addproduct', async (req, res) => {
         category: req.body.category,
         new_price: req.body.new_price,
         old_price: req.body.old_price,
-        description: req.body.description  // Include description here
+        description: req.body.description
     });
     console.log(product);
     await product.save();
@@ -110,7 +111,6 @@ app.post('/addproduct', async (req, res) => {
         name: req.body.name
     });
 });
-
 
 // Creating API for deleting products
 
@@ -153,12 +153,12 @@ const Users = mongoose.model('Users',{
     }
 })
 
-//Creating Endpoint for registereing the user
+//Creating Endpoint for registering the user
 
 app.post('/signup',async (req,res)=>{
     let check = await Users.findOne({email:req.body.email});
     if(check){
-        return res.status(400).json({success:false,errors:"Existing user found with same Email adress"});
+        return res.status(400).json({success:false,errors:"Existing user found with same Email address"});
     }
     let cart = {};
     for (let i = 0; i < 300; i++) {
@@ -207,7 +207,7 @@ app.post('/login', async (req, res) => {
     }
 })
 
-// Creating Endpoint for newcollection data
+// Creating Endpoint for new collection data
 
 app.get('/newcollections', async (req,res)=>{
     let products = await Product.find({});
@@ -215,6 +215,7 @@ app.get('/newcollections', async (req,res)=>{
     console.log("NewCollection Fetched");
     res.send(newcollection);
 })
+
 // Creating Endpoint for related products data
 app.get('/relatedproducts/:id', async (req, res) => {
     try {
@@ -235,7 +236,8 @@ app.get('/relatedproducts/:id', async (req, res) => {
         res.status(500).send('Server Error');
     }
 });
-// Creating endpoint for poopular in women section 
+
+// Creating endpoint for popular in women section 
 app.get('/popularinwomen', async (req,res)=>{
     let products = await Product.find({category:"women"});
     let popular_in_women = products.slice(0,4);
@@ -243,24 +245,22 @@ app.get('/popularinwomen', async (req,res)=>{
     res.send(popular_in_women);
 })
 
-//Creating middleware to fetch user
-    const fetchUser = async(req,res,next) =>{
-        const token = req.header('auth-token');
-        if(!token){
-            return res.status(401).send({errors:"Please Authenticate using valid token"})
-        }
-        else{
-            try{
-                const data = jwt.verify(token,'secret_ecom');
-                req.user = data.user;
-                next();
-            } catch (error){
-                res.status(401).send({errors:"Please Authenticate using valid token"})
-            }
-        }
-    
+// Creating middleware to fetch user
+const fetchUser = async(req,res,next) =>{
+    const token = req.header('auth-token');
+    if(!token){
+        return res.status(401).send({errors:"Please Authenticate using valid token"})
     }
-
+    else{
+        try{
+            const data = jwt.verify(token,'secret_ecom');
+            req.user = data.user;
+            next();
+        } catch (error){
+            res.status(401).send({errors:"Please Authenticate using valid token"})
+        }
+    }
+}
 
 // Creating endpoint for adding products to cartdata
 
@@ -283,8 +283,7 @@ app.post('/removefromcart',fetchUser, async (req,res)=>{
     res.send("Removed");
 })
 
-
-// creating endpoint to get cartdata
+// Creating endpoint to get cartdata
 
 app.get('/getcart', fetchUser, async (req, res) => {
     try {
@@ -297,9 +296,8 @@ app.get('/getcart', fetchUser, async (req, res) => {
     }
 });
 
-
-
-const stripe = require('stripe')('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'); // Replace with your Stripe secret key
+// Stripe integration
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); // Load Stripe secret key from environment variable
 
 app.post('/create-checkout-session', async (req, res) => {
     const { amount, currency = 'eur' } = req.body;
@@ -332,10 +330,6 @@ app.post('/create-checkout-session', async (req, res) => {
     }
 });
 
-
-
-
-
 app.listen(port,(error)=>{
     if(!error){
         console.log("Server Running on Port " +port)
@@ -343,4 +337,4 @@ app.listen(port,(error)=>{
     else{
         console.log("Error: "+ error)
     }
-})
+});
