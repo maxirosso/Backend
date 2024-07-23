@@ -8,13 +8,15 @@ const path = require('path');
 const cors = require('cors');
 const { error } = require('console');
 
-const port = 4000;
+const port = process.env.PORT || 4000;
 
 app.use(express.json());
 app.use(cors());
 
 // Database connection with MongoDB
-mongoose.connect("mongodb+srv://maxirosso3:Dinachina1@cluster0.e5tdlry.mongodb.net/Ee-commerce")
+mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('MongoDB connected'))
+    .catch(err => console.log(err));
 
 // API creation
 
@@ -179,7 +181,7 @@ app.post('/signup',async (req,res)=>{
         }
     }
 
-    const token = jwt.sign(data,'secret_ecom');
+    const token = jwt.sign(data,process.env.JWT_SECRET);
     res.json({success:true,token});
 })  
 
@@ -195,7 +197,7 @@ app.post('/login', async (req, res) => {
                     id:user.id
                 }
             }
-            const token = jwt.sign(data,'secret_ecom');
+            const token = jwt.sign(data,process.env.JWT_SECRET);
             res.json({success:true,token});
         }
         else{
@@ -253,7 +255,7 @@ const fetchUser = async(req,res,next) =>{
     }
     else{
         try{
-            const data = jwt.verify(token,'secret_ecom');
+            const data = jwt.verify(token,process.env.JWT_SECRET);
             req.user = data.user;
             next();
         } catch (error){
