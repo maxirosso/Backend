@@ -83,10 +83,6 @@ const Product = mongoose.model("Product", {
     description: {
         type: String,
         required: true
-    },
-    sizes: {
-        type: [String], // Array of strings to store sizes
-        default: ['S', 'M', 'L', 'XL', 'XXL']
     }
 });
 
@@ -139,32 +135,25 @@ app.get('/allproducts', async (req,res)=>{
 
 // Schema creating for User model
 
-const Users = mongoose.model('Users', {
-    name: {
-        type: String,
+const Users = mongoose.model('Users',{
+    name:{
+        type:String,
     },
-    email: {
-        type: String,
-        unique: true,
+    email:{
+        type:String,
+        unique:true,
     },
-    password: {
-        type: String,
+    password:{
+        type:String,
     },
-    cartData: {
-        type: Map, // Change from Object to Map to store size and quantity
-        of: {
-            type: Map,
-            of: {
-                quantity: { type: Number, default: 0 },
-                size: { type: String, default: 'S' } // Default size
-            }
-        }
+    cartData:{
+        type:Object,
     },
-    date: {
-        type: Date,
-        default: Date.now
+    date:{
+        type:Date,
+        default:Date.now
     }
-});
+})
 
 // Creating Endpoint for registering the user
 
@@ -279,36 +268,21 @@ const fetchUser = async (req, res, next) => {
 // Creating endpoint for adding products to cartdata
 
 app.post('/addtocart', fetchUser, async (req, res) => {
+    console.log("Added", req.body.itemId);
     let userData = await Users.findOne({ _id: req.user.id });
-    const { itemId, size } = req.body;
-
-    if (!userData.cartData.has(itemId)) {
-        userData.cartData.set(itemId, { quantity: 0, size: size || 'S' });
-    }
-    
-    let item = userData.cartData.get(itemId);
-    item.quantity += 1;
-    userData.cartData.set(itemId, item);
-
+    userData.cartData[req.body.itemId] += 1;
     await Users.findOneAndUpdate({ _id: req.user.id }, { cartData: userData.cartData });
     res.send("Added");
 });
 
-
 // Creating endpoint for removing products from cartdata
 
 app.post('/removefromcart', fetchUser, async (req, res) => {
+    console.log("removed", req.body.itemId);
     let userData = await Users.findOne({ _id: req.user.id });
-    const { itemId, size } = req.body;
-
-    if (userData.cartData.has(itemId)) {
-        let item = userData.cartData.get(itemId);
-        if (item.quantity > 0) {
-            item.quantity -= 1;
-            userData.cartData.set(itemId, item);
-            await Users.findOneAndUpdate({ _id: req.user.id }, { cartData: userData.cartData });
-        }
-    }
+    if (userData.cartData[req.body.itemId] > 0)
+        userData.cartData[req.body.itemId] -= 1;
+    await Users.findOneAndUpdate({ _id: req.user.id }, { cartData: userData.cartData });
     res.send("Removed");
 });
 
