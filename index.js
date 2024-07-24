@@ -311,8 +311,14 @@ app.post('/create-checkout-session', async (req, res) => {
             payment_method_types: ['card'],
             line_items: lineItems,
             mode: 'payment',
-            success_url: 'https://rossoecom.netlify.app/success', // Update with your success page URL
-            cancel_url: 'https://rossoecom.netlify.app/cancel', // Update with your cancel page URL
+            success_url: 'https://rossoecom.netlify.app/success?session_id={CHECKOUT_SESSION_ID}', // Appending session_id
+            cancel_url: 'https://rossoecom.netlify.app/cancel',
+            shipping_address_collection: {
+                allowed_countries: [
+                    'US', 'CA','AR', 'GB', 'AU', 'FR', 'DE', 'IT', 'ES', 'NL', 'BR', 'JP'
+                    // Add more country codes as needed
+                ],
+            },
         });
 
         res.json({ id: session.id });
