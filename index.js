@@ -303,27 +303,16 @@ app.get('/getcart', fetchUser, async (req, res) => {
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); // Load Stripe secret key from environment variable
 
 app.post('/create-checkout-session', async (req, res) => {
-    const { amount, currency = 'eur' } = req.body;
+    const { lineItems } = req.body;
 
     try {
-        // Create a new Checkout Session
+        // Create a new Checkout Session with the provided line items
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
-            line_items: [
-                {
-                    price_data: {
-                        currency: currency,
-                        product_data: {
-                            name: 'Your Product Name', // Update this with a more dynamic way if needed
-                        },
-                        unit_amount: amount, // Amount in cents
-                    },
-                    quantity: 1,
-                },
-            ],
+            line_items: lineItems,
             mode: 'payment',
-            success_url: 'http://localhost:3000/success', // Update with your success page URL
-            cancel_url: 'http://localhost:3000/cancel', // Update with your cancel page URL
+            success_url: 'https://rossoecom.netlify.app/success', // Update with your success page URL
+            cancel_url: 'https://rossoecom.netlify.app/cancel', // Update with your cancel page URL
         });
 
         res.json({ id: session.id });
