@@ -83,9 +83,7 @@ const Product = mongoose.model("Product", {
     description: {
         type: String,
         required: true
-    },
-    availableSizes: { type: [String], required: true }
-
+    }
 });
 
 app.post('/addproduct', async (req, res) => {
@@ -308,23 +306,18 @@ app.post('/create-checkout-session', async (req, res) => {
     const { lineItems } = req.body;
 
     try {
+        // Create a new Checkout Session with the provided line items
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
-            line_items: lineItems.map(item => ({
-                price_data: {
-                    currency: 'eur',
-                    product_data: {
-                        name: `${item.name} (Size: ${item.size})`, // Include size in product name
-                    },
-                    unit_amount: item.new_price * 100,
-                },
-                quantity: item.quantity,
-            })),
+            line_items: lineItems,
             mode: 'payment',
-            success_url: 'https://rossoecom.netlify.app/success?session_id={CHECKOUT_SESSION_ID}',
+            success_url: 'https://rossoecom.netlify.app/success?session_id={CHECKOUT_SESSION_ID}', // Appending session_id
             cancel_url: 'https://rossoecom.netlify.app/cancel',
             shipping_address_collection: {
-                allowed_countries: ['US', 'CA', 'AR', 'GB', 'AU', 'FR', 'DE', 'IT', 'ES', 'NL', 'BR', 'JP'],
+                allowed_countries: [
+                    'US', 'CA','AR', 'GB', 'AU', 'FR', 'DE', 'IT', 'ES', 'NL', 'BR', 'JP'
+                    // Add more country codes as needed
+                ],
             },
         });
 
