@@ -41,7 +41,7 @@ app.use('/images', express.static('upload/images'));
 app.post("/upload", upload.single('product'), (req, res) => {
     res.json({
         success: 1,
-        image_url: `http://localhost:4000/images/${req.file.filename}`
+        image_url: `https://backend-1-dsu7.onrender.com/images/${req.file.filename}`
     });
 });
 
