@@ -41,7 +41,7 @@ app.use('/images', express.static('upload/images'));
 app.post("/upload", upload.single('product'), (req, res) => {
     res.json({
         success: 1,
-        image_url: `https://backend-1-3zrm.onrender.com/images/${req.file.filename}`
+        image_url: `http://localhost:4000/images/${req.file.filename}`
     });
 });
 
@@ -83,8 +83,13 @@ const Product = mongoose.model("Product", {
     description: {
         type: String,
         required: true
+    },
+    sizes: {
+        type: [String], // Add available sizes
+        required: true
     }
 });
+
 
 app.post('/addproduct', async (req, res) => {
     let products = await Product.find({});
@@ -103,7 +108,8 @@ app.post('/addproduct', async (req, res) => {
         category: req.body.category,
         new_price: req.body.new_price,
         old_price: req.body.old_price,
-        description: req.body.description
+        description: req.body.description,
+        sizes: req.body.sizes // Add sizes to the product
     });
     console.log(product);
     await product.save();
@@ -113,6 +119,7 @@ app.post('/addproduct', async (req, res) => {
         name: req.body.name
     });
 });
+
 
 // Creating API for deleting products
 
@@ -135,25 +142,26 @@ app.get('/allproducts', async (req,res)=>{
 
 // Schema creating for User model
 
-const Users = mongoose.model('Users',{
-    name:{
-        type:String,
+const Users = mongoose.model('Users', {
+    name: {
+        type: String,
     },
-    email:{
-        type:String,
-        unique:true,
+    email: {
+        type: String,
+        unique: true,
     },
-    password:{
-        type:String,
+    password: {
+        type: String,
     },
-    cartData:{
-        type:Object,
+    cartData: {
+        type: Map,
+        of: Object,
     },
-    date:{
-        type:Date,
-        default:Date.now
+    date: {
+        type: Date,
+        default: Date.now
     }
-})
+});
 
 // Creating Endpoint for registering the user
 
@@ -268,9 +276,17 @@ const fetchUser = async (req, res, next) => {
 // Creating endpoint for adding products to cartdata
 
 app.post('/addtocart', fetchUser, async (req, res) => {
-    console.log("Added", req.body.itemId);
+    const { itemId, size } = req.body;
     let userData = await Users.findOne({ _id: req.user.id });
-    userData.cartData[req.body.itemId] += 1;
+
+    if (!userData.cartData[itemId]) {
+        userData.cartData[itemId] = {};
+    }
+    if (!userData.cartData[itemId][size]) {
+        userData.cartData[itemId][size] = 0;
+    }
+    userData.cartData[itemId][size] += 1;
+
     await Users.findOneAndUpdate({ _id: req.user.id }, { cartData: userData.cartData });
     res.send("Added");
 });
@@ -278,10 +294,13 @@ app.post('/addtocart', fetchUser, async (req, res) => {
 // Creating endpoint for removing products from cartdata
 
 app.post('/removefromcart', fetchUser, async (req, res) => {
-    console.log("removed", req.body.itemId);
+    const { itemId, size } = req.body;
     let userData = await Users.findOne({ _id: req.user.id });
-    if (userData.cartData[req.body.itemId] > 0)
-        userData.cartData[req.body.itemId] -= 1;
+
+    if (userData.cartData[itemId] && userData.cartData[itemId][size] > 0) {
+        userData.cartData[itemId][size] -= 1;
+    }
+
     await Users.findOneAndUpdate({ _id: req.user.id }, { cartData: userData.cartData });
     res.send("Removed");
 });
