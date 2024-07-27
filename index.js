@@ -120,7 +120,7 @@ app.post('/addproduct', async (req, res) => {
     const product = new Product({
         id: id,
         name: req.body.name,
-        image: req.body.image.split('/').pop(), // Store only the filename
+        image: req.body.image, // Store the full Cloudinary URL
         category: req.body.category,
         new_price: req.body.new_price,
         old_price: req.body.old_price,
