@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const app = express();
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
@@ -10,11 +9,16 @@ const bcrypt = require('bcrypt');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const { body, validationResult } = require('express-validator');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
+const app = express();
 const port = process.env.PORT || 4000;
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: 'https://rossoecom.netlify.app',
+  optionsSuccessStatus: 200
+}));
 
 // Cloudinary configuration
 cloudinary.config({
@@ -27,9 +31,9 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'uploads', // Folder where images will be stored in Cloudinary
-    format: async (req, file) => 'png', // Supported formats: 'png', 'jpeg', etc.
-    public_id: (req, file) => `${file.fieldname}_${Date.now()}` // Public ID for the image
+    folder: 'uploads',
+    format: async (req, file) => 'png',
+    public_id: (req, file) => `${file.fieldname}_${Date.now()}`
   }
 });
 
@@ -95,7 +99,7 @@ const Product = mongoose.model("Product", {
     required: true
   },
   sizes: {
-    type: [String], // Add available sizes
+    type: [String],
     required: true
   }
 });
@@ -127,12 +131,12 @@ app.post('/addproduct', [
   const product = new Product({
     id: id,
     name: req.body.name,
-    image: req.body.image.split('/').pop(), // Ensure only the filename is stored
+    image: req.body.image.split('/').pop(),
     category: req.body.category,
     new_price: req.body.new_price,
     old_price: req.body.old_price,
     description: req.body.description,
-    sizes: req.body.sizes // Add sizes to the product
+    sizes: req.body.sizes
   });
 
   try {
@@ -148,7 +152,6 @@ app.post('/addproduct', [
   }
 });
 
-// Creating API for deleting products
 app.post('/removeproduct', [
   body('id').isNumeric().withMessage('Product ID must be a number')
 ], async (req, res) => {
@@ -170,7 +173,6 @@ app.post('/removeproduct', [
   }
 });
 
-// Creating API for getting all products
 app.get('/allproducts', async (req, res) => {
   try {
     let products = await Product.find({});
@@ -182,7 +184,6 @@ app.get('/allproducts', async (req, res) => {
   }
 });
 
-// Schema for User model
 const Users = mongoose.model('Users', {
   name: {
     type: String,
@@ -204,7 +205,6 @@ const Users = mongoose.model('Users', {
   }
 });
 
-// Creating Endpoint for registering the user
 app.post('/signup', [
   body('name').notEmpty().withMessage('Name is required'),
   body('email').isEmail().withMessage('Invalid email format'),
@@ -251,7 +251,6 @@ app.post('/signup', [
   }
 });
 
-// Creating endpoint for user login
 app.post('/login', [
   body('email').isEmail().withMessage('Invalid email format'),
   body('password').notEmpty().withMessage('Password is required')
@@ -285,7 +284,6 @@ app.post('/login', [
   }
 });
 
-// Creating Endpoint for new collection data
 app.get('/newcollections', async (req, res) => {
   try {
     let products = await Product.find({});
@@ -298,157 +296,43 @@ app.get('/newcollections', async (req, res) => {
   }
 });
 
-// Creating Endpoint for related products data
 app.get('/relatedproducts/:id', async (req, res) => {
   try {
-    // Define a fixed set of product IDs that you want to always show
-    const fixedProductIds = [1, 2, 3, 4]; // Replace with actual product IDs
-
-    // Fetch these products from the database
+    const fixedProductIds = [1, 2, 3, 4];
     const relatedProducts = await Product.find({ id: { $in: fixedProductIds } });
-
-    if (relatedProducts.length === 0) {
-      return res.status(404).send({ error: "Related products not found" });
-    }
-
-    console.log("Fixed related products fetched:", relatedProducts);
+    console.log("Related Products Fetched");
     res.send(relatedProducts);
   } catch (error) {
     console.error('Error fetching related products:', error);
-    res.status(500).send('Server Error');
+    res.status(500).json({ error: 'Failed to fetch related products' });
   }
 });
 
-// Creating endpoint for popular in women section 
-app.get('/popularinwomen', async (req, res) => {
-  try {
-    let products = await Product.find({ category: "women" });
-    let popular_in_women = products.slice(0, 4);
-    console.log("Popular in women fetched");
-    res.send(popular_in_women);
-  } catch (error) {
-    console.error('Error fetching popular in women:', error);
-    res.status(500).json({ error: 'Failed to fetch popular products' });
-  }
-});
-
-// Middleware to fetch user
-const fetchUser = async (req, res, next) => {
-  const token = req.header('auth-token');
-  if (!token) {
-    return res.status(401).send({ errors: "Please Authenticate using valid token" });
-  } else {
-    try {
-      const data = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = data.user;
-      next();
-    } catch (error) {
-      res.status(401).send({ errors: "Please Authenticate using valid token" });
-    }
-  }
-};
-
-// Creating endpoint for adding products to cartdata
-app.post('/addtocart', fetchUser, [
-  body('itemId').isNumeric().withMessage('Item ID must be a number'),
-  body('size').notEmpty().withMessage('Size is required')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  const { itemId, size } = req.body;
-  try {
-    let userData = await Users.findOne({ _id: req.user.id });
-
-    if (!userData.cartData[itemId]) {
-      userData.cartData[itemId] = {};
-    }
-    if (!userData.cartData[itemId][size]) {
-      userData.cartData[itemId][size] = 0;
-    }
-    userData.cartData[itemId][size] += 1;
-
-    await Users.findOneAndUpdate({ _id: req.user.id }, { cartData: userData.cartData });
-    res.send("Added");
-  } catch (error) {
-    console.error('Error adding to cart:', error);
-    res.status(500).send('Server Error');
-  }
-});
-
-// Creating endpoint for removing products from cartdata
-app.post('/removefromcart', fetchUser, [
-  body('itemId').isNumeric().withMessage('Item ID must be a number'),
-  body('size').notEmpty().withMessage('Size is required')
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
-  const { itemId, size } = req.body;
-  try {
-    let userData = await Users.findOne({ _id: req.user.id });
-
-    if (userData.cartData[itemId] && userData.cartData[itemId][size] > 0) {
-      userData.cartData[itemId][size] -= 1;
-    }
-
-    await Users.findOneAndUpdate({ _id: req.user.id }, { cartData: userData.cartData });
-    res.send("Removed");
-  } catch (error) {
-    console.error('Error removing from cart:', error);
-    res.status(500).send('Server Error');
-  }
-});
-
-// Creating endpoint to get cartdata
-app.get('/getcart', fetchUser, async (req, res) => {
-  try {
-    console.log("GetCart");
-    let userData = await Users.findOne({ _id: req.user.id });
-    res.json(userData.cartData);
-  } catch (error) {
-    console.error('Error fetching cart data:', error);
-    res.status(500).send('Server Error');
-  }
-});
-
-// Stripe integration
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); // Load Stripe secret key from environment variable
-
-app.post('/create-checkout-session', async (req, res) => {
-  const { lineItems } = req.body;
-
-  try {
-    // Create a new Checkout Session with the provided line items
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: lineItems,
-      mode: 'payment',
-      success_url: 'https://rossoecom.netlify.app/success?session_id={CHECKOUT_SESSION_ID}', // Appending session_id
-      cancel_url: 'https://rossoecom.netlify.app/cancel',
-      shipping_address_collection: {
-        allowed_countries: [
-          'US', 'CA', 'AR', 'GB', 'AU', 'FR', 'DE', 'IT', 'ES', 'NL', 'BR', 'JP'
-          // Add more country codes as needed
-        ],
-      },
+app.post('/checkout', async (req, res) => {
+  const items = req.body.items;
+  let lineItems = [];
+  items.forEach((item) => {
+    lineItems.push({
+      price: item.id,
+      quantity: item.quantity
     });
+  });
 
-    res.json({ id: session.id });
-  } catch (error) {
-    console.error('Error creating checkout session:', error);
-    res.status(500).send('Server Error');
-  }
+  const session = await stripe.checkout.sessions.create({
+    shipping_address_collection: {
+      allowed_countries: ['US', 'CA'],
+    },
+    line_items: lineItems,
+    mode: 'payment',
+    success_url: 'http://localhost:3000/success',
+    cancel_url: 'http://localhost:3000/cancel'
+  });
+
+  res.send(JSON.stringify({
+    id: session.id
+  }));
 });
 
-app.listen(port, (error) => {
-  if (!error) {
-    console.log("Server Running on Port " + port);
-  } else {
-    console.error("Error: " + error);
-  }
+app.listen(port, () => {
+  console.log(`Server started on port ${port}`);
 });
