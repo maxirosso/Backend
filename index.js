@@ -8,6 +8,7 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const { MercadoPagoConfig, Payment } = require('mercadopago'); // Import Mercado Pago
 
 const port = process.env.PORT || 4000;
 
@@ -299,34 +300,77 @@ app.get('/getcart', fetchUser, async (req, res) => {
     }
 });
 
-// Stripe integration
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); // Load Stripe secret key from environment variable
+// Initialize Mercado Pago
+const client = new MercadoPagoConfig({
+    accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN, // Replace with your access token
+    options: { 
+        timeout: 5000, 
+        idempotencyKey: 'your_unique_idempotency_key' // Optional
+    }
+});
+const payment = new Payment(client);
 
+// Creating endpoint for checkout session
 app.post('/create-checkout-session', async (req, res) => {
-    const { lineItems } = req.body;
+    const { items, payerEmail } = req.body;
 
     try {
-        // Create a new Checkout Session with the provided line items
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            line_items: lineItems,
-            mode: 'payment',
-            success_url: 'https://rossoecom.netlify.app/success?session_id={CHECKOUT_SESSION_ID}', // Appending session_id
-            cancel_url: 'https://rossoecom.netlify.app/cancel',
-            shipping_address_collection: {
-                allowed_countries: [
-                    'US', 'CA', 'AR', 'GB', 'AU', 'FR', 'DE', 'IT', 'ES', 'NL', 'BR', 'JP'
-                    // Add more country codes as needed
-                ],
+        // Calculate the total amount for the payment
+        const totalAmount = items.reduce((total, item) => total + (item.unit_price * item.quantity), 0);
+
+        if (totalAmount <= 0) {
+            throw new Error('Total amount must be greater than 0');
+        }
+
+        // Create the request object for Mercado Pago
+        const body = {
+            items: items.map(item => ({
+                title: item.title || 'Product', // Customize if necessary
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                currency_id: 'ARS' // Ensure correct currency
+            })),
+            payer: {
+                email: payerEmail
             },
+            back_urls: {
+                success: 'https://yourapp.com/success',
+                failure: 'https://yourapp.com/failure',
+                pending: 'https://yourapp.com/pending'
+            },
+            auto_return: 'approved'
+        };
+
+        // Create request options object
+        const requestOptions = {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.MERCADO_PAGO_ACCESS_TOKEN}` // Ensure correct token
+            }
+        };
+
+        // Make the request to Mercado Pago
+        const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
+            method: 'POST',
+            ...requestOptions,
+            body: JSON.stringify(body)
         });
 
-        res.json({ id: session.id });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(`Failed to create payment preference: ${error.message}`);
+        }
+
+        const { id } = await response.json();
+
+        res.json({ id });
     } catch (error) {
-        console.error('Error creating checkout session:', error);
+        console.error('Error creating payment:', error.message);
         res.status(500).send('Server Error');
     }
 });
+
+
 
 app.listen(port, (error) => {
     if (!error) {
