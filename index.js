@@ -8,6 +8,7 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const { MercadoPagoConfig, Payment } = require('mercadopago');
 
 const port = process.env.PORT || 4000;
 
@@ -36,6 +37,10 @@ const storage = new CloudinaryStorage({
 });
 
 const upload = multer({ storage: storage });
+
+// Mercado Pago configuration
+const client = new MercadoPagoConfig({ accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN });
+const payment = new Payment(client);
 
 app.get("/", (req, res) => {
     res.send("Express App is running");
@@ -151,6 +156,10 @@ const Users = mongoose.model('Users', {
     password: {
         type: String,
     },
+    address: {
+        type: String, // Add address field
+        required: false
+    },
     cartData: {
         type: Map,
         of: Object,
@@ -179,6 +188,7 @@ app.post('/signup', async (req, res) => {
         name: req.body.name,
         email: req.body.email,
         password: hashedPassword,
+        address: req.body.address, // Save address here
         cartData: cart
     });
 
@@ -277,12 +287,13 @@ app.post('/addtocart', fetchUser, async (req, res) => {
     res.send("Added");
 });
 
-// Creating endpoint for removing products from cartdata
-app.post('/removefromcart', fetchUser, async (req, res) => {
+   // Creating endpoint for removing products from cartdata
+   app.post('/removefromcart', fetchUser, async (req, res) => {
     console.log("removed", req.body.itemId);
     let userData = await Users.findOne({ _id: req.user.id });
-    if (userData.cartData[req.body.itemId] > 0)
+    if (userData.cartData[req.body.itemId] > 0) {
         userData.cartData[req.body.itemId] -= 1;
+    }
     await Users.findOneAndUpdate({ _id: req.user.id }, { cartData: userData.cartData });
     res.send("Removed");
 });
@@ -299,39 +310,60 @@ app.get('/getcart', fetchUser, async (req, res) => {
     }
 });
 
-// Stripe integration
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); // Load Stripe secret key from environment variable
+// Mercado Pago integration
 
-app.post('/create-checkout-session', async (req, res) => {
-    const { lineItems } = req.body;
+// Endpoint to create Mercado Pago preference
+app.post('/create-checkout-preference', fetchUser, async (req, res) => {
+    const { items, address } = req.body;
+
+    if (!address) {
+        return res.status(400).json({ success: false, errors: "Address is required" });
+    }
+
+    let preference = {
+        items: items.map(item => ({
+            title: item.title + " - Size: " + item.size, // Add size to title
+            unit_price: item.unit_price,
+            quantity: item.quantity
+        })),
+        payer: {
+            address: {
+                street_name: address // Use the provided address
+            }
+        },
+        back_urls: {
+            success: 'https://rossoecom.netlify.app/success',
+            failure: 'https://rossoecom.netlify.app/failure',
+            pending: 'https://rossoecom.netlify.app/pending'
+        },
+        auto_return: 'approved',
+        payment_methods: {
+            excluded_payment_types: [
+                { id: 'ticket' }
+            ]
+        },
+        shipments: {
+            cost: 30,
+            mode: 'not_specified',
+            receiver_address: {
+                street_name: address // Use the provided address
+            }
+        }
+    };
 
     try {
-        // Create a new Checkout Session with the provided line items
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            line_items: lineItems,
-            mode: 'payment',
-            success_url: 'https://rossoecom.netlify.app/success?session_id={CHECKOUT_SESSION_ID}', // Appending session_id
-            cancel_url: 'https://rossoecom.netlify.app/cancel',
-            shipping_address_collection: {
-                allowed_countries: [
-                    'US', 'CA', 'AR', 'GB', 'AU', 'FR', 'DE', 'IT', 'ES', 'NL', 'BR', 'JP'
-                    // Add more country codes as needed
-                ],
-            },
-        });
-
-        res.json({ id: session.id });
+        const response = await payment.create({ body: preference });
+        res.json({ id: response.body.id });
     } catch (error) {
-        console.error('Error creating checkout session:', error);
+        console.error('Error creating Mercado Pago preference:', error);
         res.status(500).send('Server Error');
     }
 });
 
 app.listen(port, (error) => {
     if (!error) {
-        console.log("Server Running on Port " + port)
+        console.log("Server Running on Port " + port);
     } else {
-        console.log("Error: " + error)
+        console.log("Error: " + error);
     }
 });
