@@ -300,7 +300,7 @@ app.get('/getcart', fetchUser, async (req, res) => {
 });
 
 // Stripe integration
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); // Load Stripe secret key from environment variable new
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); // Load Stripe secret key from environment variable
 
 app.post('/create-checkout-session', async (req, res) => {
     const { lineItems } = req.body;
