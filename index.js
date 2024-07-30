@@ -342,7 +342,7 @@ app.post('/create-checkout-session', async (req, res) => {
             },
             auto_return: 'approved',
             additional_info: {
-                shipping_address: shippingAddress // Include address information
+                shipping_address: shippingAddress
             }
         };
 
@@ -366,12 +366,27 @@ app.post('/create-checkout-session', async (req, res) => {
 
         const { id } = await response.json();
 
+        // Optionally create the order here if payment is successful
+        await fetch('https://backend-1-jcll.onrender.com/create-order', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                paymentId: id, // Use the actual paymentId received from Mercado Pago
+                shippingAddress,
+                payerEmail,
+                items
+            }),
+        });
+
         res.json({ id });
     } catch (error) {
         console.error('Error creating payment:', error.message);
         res.status(500).send('Server Error');
     }
 });
+
 
 // Schema for creating orders
 const Order = mongoose.model("Order", {
@@ -383,9 +398,18 @@ const Order = mongoose.model("Order", {
         type: String,
         required: true
     },
-    // Include other order details as needed
+    payerEmail: {
+        type: String,
+        required: true
+    },
+    items: [{
+        title: String,
+        quantity: Number,
+        size: String,
+        unit_price: Number,
+    }],
+    // Add other order details as needed
 });
-
 // Route Definition
 app.get('/order-details/:paymentId', async (req, res) => {
     const { paymentId } = req.params;
@@ -410,12 +434,14 @@ app.get('/order-details/:paymentId', async (req, res) => {
 });
 
 app.post('/create-order', async (req, res) => {
-    const { paymentId, shippingAddress } = req.body;
+    const { paymentId, shippingAddress, payerEmail, items } = req.body;
 
     try {
         const newOrder = new Order({
             paymentId,
-            shippingAddress
+            shippingAddress,
+            payerEmail,
+            items
         });
 
         await newOrder.save();
