@@ -409,6 +409,23 @@ app.get('/order-details/:paymentId', async (req, res) => {
     }
 });
 
+app.post('/create-order', async (req, res) => {
+    const { paymentId, shippingAddress } = req.body;
+
+    try {
+        const newOrder = new Order({
+            paymentId,
+            shippingAddress
+        });
+
+        await newOrder.save();
+        res.status(201).send('Order created successfully');
+    } catch (error) {
+        console.error('Error creating order:', error);
+        res.status(500).send('Server Error');
+    }
+});
+
 app.listen(port, (error) => {
     if (!error) {
         console.log("Server Running on Port " + port)
