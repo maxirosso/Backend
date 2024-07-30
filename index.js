@@ -165,7 +165,6 @@ const Users = mongoose.model('Users', {
     }
 });
 
-
 // Creating Endpoint for registering the user
 app.post('/signup', async (req, res) => {
     let check = await Users.findOne({ email: req.body.email });
@@ -320,20 +319,18 @@ app.post('/create-checkout-session', async (req, res) => {
     const { items, payerEmail, shippingAddress } = req.body;
 
     try {
-        // Calculate the total amount for the payment
         const totalAmount = items.reduce((total, item) => total + (item.unit_price * item.quantity), 0);
 
         if (totalAmount <= 0) {
             throw new Error('Total amount must be greater than 0');
         }
 
-        // Create the request object for Mercado Pago
         const body = {
             items: items.map(item => ({
-                title: item.title || 'Product', // Customize if necessary
+                title: item.title || 'Product',
                 quantity: item.quantity,
                 unit_price: item.unit_price,
-                currency_id: 'ARS' // Ensure correct currency
+                currency_id: 'ARS'
             })),
             payer: {
                 email: payerEmail
@@ -349,15 +346,13 @@ app.post('/create-checkout-session', async (req, res) => {
             }
         };
 
-        // Create request options object
         const requestOptions = {
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.MERCADO_PAGO_ACCESS_TOKEN}` // Ensure correct token
+                'Authorization': `Bearer ${process.env.MERCADO_PAGO_ACCESS_TOKEN}`
             }
         };
 
-        // Make the request to Mercado Pago
         const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
             method: 'POST',
             ...requestOptions,
@@ -378,7 +373,41 @@ app.post('/create-checkout-session', async (req, res) => {
     }
 });
 
+// Schema for creating orders
+const Order = mongoose.model("Order", {
+    paymentId: {
+        type: String,
+        required: true
+    },
+    shippingAddress: {
+        type: String,
+        required: true
+    },
+    // Include other order details as needed
+});
 
+// Route Definition
+app.get('/order-details/:paymentId', async (req, res) => {
+    const { paymentId } = req.params;
+
+    try {
+        console.log(`Received request for paymentId: ${paymentId}`); // Debug log
+        const order = await Order.findOne({ paymentId });
+        if (!order) {
+            console.log('Order not found'); // Debug log
+            return res.status(404).send('Order not found');
+        }
+
+        res.json({
+            id: order.id,
+            shippingAddress: order.shippingAddress,
+            // Include other order details as needed
+        });
+    } catch (error) {
+        console.error('Error fetching order details:', error);
+        res.status(500).send('Server Error');
+    }
+});
 
 app.listen(port, (error) => {
     if (!error) {
