@@ -152,6 +152,9 @@ const Users = mongoose.model('Users', {
     password: {
         type: String,
     },
+    address: {
+        type: String, // Add address field
+    },
     cartData: {
         type: Map,
         of: Object,
@@ -161,6 +164,7 @@ const Users = mongoose.model('Users', {
         default: Date.now
     }
 });
+
 
 // Creating Endpoint for registering the user
 app.post('/signup', async (req, res) => {
@@ -177,9 +181,10 @@ app.post('/signup', async (req, res) => {
     const hashedPassword = await bcrypt.hash(req.body.password, 10);
 
     const user = new Users({
-        name: req.body.name,
+        name: req.body.username, // Use username here
         email: req.body.email,
         password: hashedPassword,
+        address: req.body.address, // Store address
         cartData: cart
     });
 
@@ -312,7 +317,7 @@ const payment = new Payment(client);
 
 // Creating endpoint for checkout session
 app.post('/create-checkout-session', async (req, res) => {
-    const { items, payerEmail } = req.body;
+    const { items, payerEmail, shippingAddress } = req.body;
 
     try {
         // Calculate the total amount for the payment
@@ -334,11 +339,14 @@ app.post('/create-checkout-session', async (req, res) => {
                 email: payerEmail
             },
             back_urls: {
-                success: 'https://yourapp.com/success',
-                failure: 'https://yourapp.com/failure',
+                success: 'https://rossoecom.netlify.app/success',
+                failure: 'https://rossoecom.netlify.app/cancel',
                 pending: 'https://yourapp.com/pending'
             },
-            auto_return: 'approved'
+            auto_return: 'approved',
+            additional_info: {
+                shipping_address: shippingAddress // Include address information
+            }
         };
 
         // Create request options object
