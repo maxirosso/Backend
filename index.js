@@ -452,6 +452,11 @@ app.post('/create-order', async (req, res) => {
     }
 });
 
+app.get("/ping", (req, res) => {
+    res.status(200).send("pong");
+});
+
+
 app.listen(port, (error) => {
     if (!error) {
         console.log("Server Running on Port " + port)
